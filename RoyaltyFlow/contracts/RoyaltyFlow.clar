@@ -267,4 +267,39 @@
   (var-get contract-paused)
 )
 
+;; Advanced Royalty Split Management System
+;; This function allows creators to set up complex royalty distribution schemes
+;; where multiple parties can receive portions of the royalty payments.
+;; It supports percentage-based splits and includes validation to ensure
+;; total allocations don't exceed 100% of the royalty amount.
+(define-public (configure-royalty-splits
+  (nft-id uint)
+  (recipients (list 10 { recipient: principal, split-percentage: uint })))
+  (begin
+    (asserts! (is-contract-active) ERR-NOT-AUTHORIZED)
+    
+    (let (
+      (royalty-config (unwrap! (map-get? nft-royalties { nft-id: nft-id }) ERR-NFT-NOT-FOUND))
+      (total-percentage (fold + (map get-split-percentage recipients) u0))
+    )
+      ;; Only creator can configure splits
+      (asserts! (is-eq tx-sender (get creator royalty-config)) ERR-NOT-AUTHORIZED)
+      
+      ;; Ensure total percentage doesn't exceed 100%
+      (asserts! (<= total-percentage BASIS-POINTS) ERR-INVALID-PERCENTAGE)
+      
+      ;; Clear existing secondary recipients for this NFT
+      (clear-secondary-recipients nft-id)
+      
+      ;; Set new secondary recipients
+      (fold set-secondary-recipient recipients nft-id)
+      
+      (ok {
+        nft-id: nft-id,
+        total-recipients: (len recipients),
+        total-split-percentage: total-percentage
+      })
+    )
+  )
+)
 
